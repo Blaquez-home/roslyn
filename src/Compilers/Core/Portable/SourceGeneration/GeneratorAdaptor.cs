@@ -15,21 +15,36 @@ namespace Microsoft.CodeAnalysis
     /// </summary>
     internal sealed class SourceGeneratorAdaptor : IIncrementalGenerator
     {
+        /// <summary>
+        /// A dummy extension that is used to indicate this adaptor was created outside of the driver.
+        /// </summary>
+        public const string DummySourceExtension = ".dummy";
+
+        private readonly string _sourceExtension;
+
         internal ISourceGenerator SourceGenerator { get; }
 
-        public SourceGeneratorAdaptor(ISourceGenerator generator)
+        public SourceGeneratorAdaptor(ISourceGenerator generator, string sourceExtension)
         {
             SourceGenerator = generator;
+            _sourceExtension = sourceExtension;
         }
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            GeneratorInitializationContext generatorInitContext = new GeneratorInitializationContext(CancellationToken.None);
-            SourceGenerator.Initialize(generatorInitContext);
+            // We don't currently have any APIs that accept IIncrementalGenerator directly (even in construction we wrap and unwrap them)
+            // so it should be impossible to get here with a wrapper that was created via ISourceGenerator.AsIncrementalGenerator.
+            // If we ever do have such an API, we will need to make sure that the source extension is updated as part of adding it to the driver.
+            Debug.Assert(_sourceExtension != DummySourceExtension);
 
-            if (generatorInitContext.InfoBuilder.PostInitCallback is object)
+            GeneratorInitializationContext generatorInitContext = new GeneratorInitializationContext(CancellationToken.None);
+#pragma warning disable CS0618 // Type or member is obsolete
+            SourceGenerator.Initialize(generatorInitContext);
+#pragma warning restore CS0618 // Type or member is obsolete
+
+            if (generatorInitContext.Callbacks.PostInitCallback is object)
             {
-                context.RegisterPostInitializationOutput(generatorInitContext.InfoBuilder.PostInitCallback);
+                context.RegisterPostInitializationOutput(generatorInitContext.Callbacks.PostInitCallback);
             }
 
             var contextBuilderSource = context.CompilationProvider
@@ -38,7 +53,7 @@ namespace Microsoft.CodeAnalysis
                                         .Combine(context.AnalyzerConfigOptionsProvider).Select((p, _) => p.Item1 with { ConfigOptions = p.Item2 })
                                         .Combine(context.AdditionalTextsProvider.Collect()).Select((p, _) => p.Item1 with { AdditionalTexts = p.Item2 });
 
-            var syntaxContextReceiverCreator = generatorInitContext.InfoBuilder.SyntaxContextReceiverCreator;
+            var syntaxContextReceiverCreator = generatorInitContext.Callbacks.SyntaxContextReceiverCreator;
             if (syntaxContextReceiverCreator is object)
             {
                 contextBuilderSource = contextBuilderSource
@@ -48,8 +63,10 @@ namespace Microsoft.CodeAnalysis
 
             context.RegisterSourceOutput(contextBuilderSource, (productionContext, contextBuilder) =>
             {
-                var generatorExecutionContext = contextBuilder.ToExecutionContext(productionContext.CancellationToken);
+                var generatorExecutionContext = contextBuilder.ToExecutionContext(_sourceExtension, productionContext.CancellationToken);
+#pragma warning disable CS0618 // Type or member is obsolete
                 SourceGenerator.Execute(generatorExecutionContext);
+#pragma warning restore CS0618 // Type or member is obsolete
 
                 // copy the contents of the old context to the new
                 generatorExecutionContext.CopyToProductionContext(productionContext);
@@ -67,10 +84,10 @@ namespace Microsoft.CodeAnalysis
 
             public ISyntaxContextReceiver? Receiver;
 
-            public GeneratorExecutionContext ToExecutionContext(CancellationToken cancellationToken)
+            public GeneratorExecutionContext ToExecutionContext(string sourceExtension, CancellationToken cancellationToken)
             {
                 Debug.Assert(ParseOptions is object && ConfigOptions is object);
-                return new GeneratorExecutionContext(Compilation, ParseOptions, AdditionalTexts, ConfigOptions, Receiver, cancellationToken);
+                return new GeneratorExecutionContext(Compilation, ParseOptions, AdditionalTexts, ConfigOptions, Receiver, sourceExtension, cancellationToken);
             }
         }
     }

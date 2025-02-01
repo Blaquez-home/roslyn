@@ -17,7 +17,7 @@ namespace Microsoft.CodeAnalysis.Collections
     /// collection uses segmented arrays to avoid placing objects on the Large Object Heap.
     /// </summary>
     /// <typeparam name="T">The type of elements stored in the array.</typeparam>
-    internal readonly struct SegmentedArray<T> : ICloneable, IList, IStructuralComparable, IStructuralEquatable, IList<T>, IReadOnlyList<T>
+    internal readonly partial struct SegmentedArray<T> : ICloneable, IList, IStructuralComparable, IStructuralEquatable, IList<T>, IReadOnlyList<T>, IEquatable<SegmentedArray<T>>
     {
         /// <summary>
         /// The number of elements in each page of the segmented array of type <typeparamref name="T"/>.
@@ -32,7 +32,6 @@ namespace Microsoft.CodeAnalysis.Collections
         /// </remarks>
         private static int SegmentSize
         {
-            [MethodImpl(SegmentedArrayHelper.FastPathMethodImplOptions)]
             get
             {
                 return SegmentedArrayHelper.GetSegmentSize<T>();
@@ -44,7 +43,6 @@ namespace Microsoft.CodeAnalysis.Collections
         /// </summary>
         private static int SegmentShift
         {
-            [MethodImpl(SegmentedArrayHelper.FastPathMethodImplOptions)]
             get
             {
                 return SegmentedArrayHelper.GetSegmentShift<T>();
@@ -56,7 +54,6 @@ namespace Microsoft.CodeAnalysis.Collections
         /// </summary>
         private static int OffsetMask
         {
-            [MethodImpl(SegmentedArrayHelper.FastPathMethodImplOptions)]
             get
             {
                 return SegmentedArrayHelper.GetOffsetMask<T>();
@@ -115,7 +112,7 @@ namespace Microsoft.CodeAnalysis.Collections
 
         public ref T this[int index]
         {
-            [MethodImpl(SegmentedArrayHelper.FastPathMethodImplOptions)]
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
                 return ref _items[index >> SegmentShift][index & OffsetMask];
@@ -172,6 +169,22 @@ namespace Microsoft.CodeAnalysis.Collections
 
         public Enumerator GetEnumerator()
             => new(this);
+
+        public override bool Equals(object? obj)
+        {
+            return obj is SegmentedArray<T> other
+                && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return _items.GetHashCode();
+        }
+
+        public bool Equals(SegmentedArray<T> other)
+        {
+            return _items == other._items;
+        }
 
         int IList.Add(object? value)
         {
@@ -294,7 +307,7 @@ namespace Microsoft.CodeAnalysis.Collections
 
             // Matches System.Array
             // https://github.com/dotnet/runtime/blob/e0ec035994179e8ebd6ccf081711ee11d4c5491b/src/libraries/System.Private.CoreLib/src/System/Array.cs#L320-L323
-            if (!(other is SegmentedArray<T> o)
+            if (other is not SegmentedArray<T> o
                 || Length != o.Length)
             {
                 throw new ArgumentException(SR.ArgumentException_OtherNotArrayOfCorrectLength, nameof(other));
@@ -315,10 +328,10 @@ namespace Microsoft.CodeAnalysis.Collections
             if (other is null)
                 return false;
 
-            if (!(other is SegmentedArray<T> o))
+            if (other is not SegmentedArray<T> o)
                 return false;
 
-            if ((object)_items == o._items)
+            if (ReferenceEquals(_items, o._items))
                 return true;
 
             if (Length != o.Length)
@@ -342,7 +355,7 @@ namespace Microsoft.CodeAnalysis.Collections
             var ret = 0;
             for (var i = Length >= 8 ? Length - 8 : 0; i < Length; i++)
             {
-#if NETCOREAPP
+#if NET
                 ret = HashCode.Combine(comparer.GetHashCode(this[i]!), ret);
 #else
                 ret = unchecked((ret * (int)0xA5555529) + comparer.GetHashCode(this[i]!));
@@ -351,9 +364,6 @@ namespace Microsoft.CodeAnalysis.Collections
 
             return ret;
         }
-
-        internal TestAccessor GetTestAccessor()
-            => new(this);
 
         public struct Enumerator : IEnumerator<T>
         {
@@ -370,10 +380,10 @@ namespace Microsoft.CodeAnalysis.Collections
                 _current = default!;
             }
 
-            public T Current => _current;
-            object? IEnumerator.Current => Current;
+            public readonly T Current => _current;
+            readonly object? IEnumerator.Current => Current;
 
-            public void Dispose()
+            public readonly void Dispose()
             {
             }
 
@@ -406,18 +416,9 @@ namespace Microsoft.CodeAnalysis.Collections
             }
         }
 
-        internal readonly struct TestAccessor
+        internal static class TestAccessor
         {
-            private readonly SegmentedArray<T> _array;
-
-            public TestAccessor(SegmentedArray<T> array)
-            {
-                _array = array;
-            }
-
             public static int SegmentSize => SegmentedArray<T>.SegmentSize;
-
-            public T[][] Items => _array._items;
         }
     }
 }

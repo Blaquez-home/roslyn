@@ -11,7 +11,6 @@ using System.Threading;
 using System.Xml;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Shared.Extensions;
 using Microsoft.VisualStudio.LanguageServices.Implementation.CodeModel.Collections;
 using Microsoft.VisualStudio.LanguageServices.Implementation.Utilities;
 
@@ -129,8 +128,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.CodeModel.Exter
         {
             var symbol = LookupSymbol();
 
-            if (symbol.Kind == SymbolKind.Namespace &&
-                ((INamespaceSymbol)symbol).IsGlobalNamespace)
+            if (symbol is INamespaceSymbol { IsGlobalNamespace: true })
             {
                 // TODO: We should be returning the RootCodeModel object here.
                 throw new NotImplementedException();

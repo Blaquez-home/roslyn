@@ -2,19 +2,24 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-namespace Microsoft.CodeAnalysis.NavigationBar
-{
-    internal abstract partial class RoslynNavigationBarItem
-    {
-        public class GenerateFinalizer : AbstractGenerateCodeItem
-        {
-            public GenerateFinalizer(string text, SymbolKey destinationTypeSymbolKey)
-                : base(RoslynNavigationBarItemKind.GenerateFinalizer, text, Glyph.MethodProtected, destinationTypeSymbolKey)
-            {
-            }
+using System;
 
-            protected internal override SerializableNavigationBarItem Dehydrate()
-                => SerializableNavigationBarItem.GenerateFinalizer(Text, DestinationTypeSymbolKey);
-        }
+namespace Microsoft.CodeAnalysis.NavigationBar;
+
+internal abstract partial class RoslynNavigationBarItem
+{
+    public class GenerateFinalizer(string text, SymbolKey destinationTypeSymbolKey) : AbstractGenerateCodeItem(RoslynNavigationBarItemKind.GenerateFinalizer, text, Glyph.MethodProtected, destinationTypeSymbolKey), IEquatable<GenerateFinalizer>
+    {
+        protected internal override SerializableNavigationBarItem Dehydrate()
+            => SerializableNavigationBarItem.GenerateFinalizer(Text, DestinationTypeSymbolKey);
+
+        public override bool Equals(object? obj)
+            => Equals(obj as GenerateFinalizer);
+
+        public bool Equals(GenerateFinalizer? other)
+            => base.Equals(other);
+
+        public override int GetHashCode()
+            => throw new NotImplementedException();
     }
 }

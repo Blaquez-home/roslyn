@@ -384,7 +384,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                 End If
 
                 ' Report conflicts between Static variables.
-                ReportNameConfictsBetweenStaticLocals(blockBinder, diagnostics)
+                ReportNameConflictsBetweenStaticLocals(blockBinder, diagnostics)
             Else
                 statements.Add(exitLabelStatement)
             End If
@@ -410,6 +410,37 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                                                         Nothing, Nothing))
             Else
                 statements.Add(New BoundReturnStatement(methodBlock.EndBlockStatement, Nothing, Nothing, Nothing))
+            End If
+
+            ' Inject implicit base constructor call, if appropriate
+            If Not methodSymbol.IsImplicitlyDeclared AndAlso methodSymbol.MethodKind = MethodKind.Constructor Then
+                Dim referencedConstructor As MethodSymbol = Nothing
+                Dim injectDefaultConstructorCall As Boolean = False
+
+                MethodCompiler.GetExplicitlyOrImplicitlyReferencedConstructor(methodSymbol, statements(0), Me,
+                                                                              diagnostics, referencedConstructor, injectDefaultConstructorCall)
+
+                ' If we didn't find explicitly referenced constructor, use implicitly generated call
+                If injectDefaultConstructorCall Then
+                    If referencedConstructor IsNot Nothing Then
+                        Dim initializer As BoundExpressionStatement = MethodCompiler.BindDefaultConstructorInitializer(methodSymbol, referencedConstructor, diagnostics, Me)
+                        Debug.Assert(initializer.Expression.Kind = BoundKind.Call OrElse
+                                     (initializer.HasErrors AndAlso
+                                      (Not diagnostics.AccumulatesDiagnostics OrElse diagnostics.HasAnyResolvedErrors)))
+                        statements.Insert(0, initializer)
+                    Else
+                        Debug.Assert(Not diagnostics.AccumulatesDiagnostics OrElse diagnostics.HasAnyResolvedErrors OrElse If(methodSymbol.ContainingType.BaseTypeNoUseSiteDiagnostics?.IsErrorType(), False))
+                        ' Insert statement with an error to prevent more attempts to inject the initializer which will cause duplicate diagnostics
+                        statements.Insert(0,
+                                          New BoundExpressionStatement(methodSymbol.Syntax,
+                                                                       New BoundBadExpression(methodSymbol.Syntax, LookupResultKind.OverloadResolutionFailure,
+                                                                                              ImmutableArray(Of Symbol).Empty,
+                                                                                              ImmutableArray(Of BoundExpression).Empty,
+                                                                                              ErrorTypeSymbol.UnknownResultType, hasErrors:=True).
+                                                                       MakeCompilerGenerated()).
+                                          MakeCompilerGenerated())
+                    End If
+                End If
             End If
 
             Return New BoundBlock(methodBlock, If(methodBlock IsNot Nothing, methodBlock.Statements, Nothing), locals, statements.ToImmutableAndFree())
@@ -475,7 +506,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
 
                 If (containsOnError OrElse containsResume) AndAlso walker._containsTry Then
                     For Each node In walker._tryOnErrorResume
-                        binder.ReportDiagnostic(diagnostics, node.Syntax, ERRID.ERR_TryAndOnErrorDoNotMix)
+                        Binder.ReportDiagnostic(diagnostics, node.Syntax, ERRID.ERR_TryAndOnErrorDoNotMix)
                     Next
 
                     reportedAnError = True
@@ -603,7 +634,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
             End Function
         End Class
 
-        Private Shared Sub ReportNameConfictsBetweenStaticLocals(methodBlockBinder As Binder, diagnostics As BindingDiagnosticBag)
+        Private Shared Sub ReportNameConflictsBetweenStaticLocals(methodBlockBinder As Binder, diagnostics As BindingDiagnosticBag)
             Dim currentBinder As Binder = methodBlockBinder
             Dim bodyBinder As MethodBodyBinder
 
@@ -1239,9 +1270,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                         ReportDiagnostic(diagnostics, errSyntax, ERRID.ERR_ConstAsNonConstant)
                     Else
                         Dim bag = symbol.GetConstantValueDiagnostics(Me)
-                        If bag IsNot Nothing Then
-                            diagnostics.AddRange(bag, allowMismatchInDependencyAccumulation:=True)
-                        End If
+                        diagnostics.AddRange(bag, allowMismatchInDependencyAccumulation:=True)
                     End If
                 End If
             End If
@@ -1574,7 +1603,6 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
             Return type
         End Function
 
-
         ''' <summary>
         ''' Infer the type of a variable declared with an initializing expression.
         ''' </summary>
@@ -1711,7 +1739,6 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
 
             Return defaultType
         End Function
-
 
         'TODO: override in MethodBodySemanticModel similarly to BindVariableDeclaration.
         Friend Overridable Function BindCatchVariableDeclaration(name As IdentifierNameSyntax,
@@ -1940,7 +1967,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                                                                    InternalSyntax.Feature.InitOnlySettersUsage)
                         End If
 
-                        ReportDiagnosticsIfObsoleteOrNotSupportedByRuntime(diagnostics, setMethod, node)
+                        ReportDiagnosticsIfObsoleteOrNotSupported(diagnostics, setMethod, node)
 
                         If ReportUseSite(diagnostics, op1.Syntax, setMethod) Then
                             isError = True
@@ -4704,6 +4731,8 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                     ReportDiagnostic(diagnostics,
                                      lockExpression.Syntax,
                                      ErrorFactory.ErrorInfo(ERRID.ERR_SyncLockRequiresReferenceType1, lockExpressionType))
+                ElseIf lockExpressionType.IsWellKnownTypeLock() Then
+                    ReportDiagnostic(diagnostics, lockExpression.Syntax, ERRID.ERR_LockTypeUnsupported)
                 End If
             End If
 
@@ -4870,7 +4899,6 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                                        hasErrors:=hasError,
                                        isSynthesizedAsyncCatchAll:=False)
         End Function
-
 
         Private Function BindExitStatement(node As ExitStatementSyntax, diagnostics As BindingDiagnosticBag) As BoundStatement
             Dim targetLabel As LabelSymbol = GetExitLabel(node.Kind)
@@ -5191,7 +5219,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
 
                     If Not exceptionType.IsOrDerivedFromWellKnownClass(WellKnownType.System_Exception, Compilation, useSiteInfo) Then
                         hasError = True
-                        ReportDiagnostic(diagnostics, node, ERRID.ERR_CantThrowNonException, exceptionType)
+                        ReportDiagnostic(diagnostics, node, ERRID.ERR_CantThrowNonException)
                     End If
 
                     diagnostics.Add(node, useSiteInfo)

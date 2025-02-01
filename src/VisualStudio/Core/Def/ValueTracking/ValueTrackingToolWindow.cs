@@ -3,79 +3,84 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
-using System.Linq;
-using System.Windows.Controls;
 using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.Shell;
 using Roslyn.Utilities;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Editor.Shared.Utilities;
+using System.Diagnostics.CodeAnalysis;
 
-namespace Microsoft.VisualStudio.LanguageServices.ValueTracking
+namespace Microsoft.VisualStudio.LanguageServices.ValueTracking;
+
+[Guid(Guids.ValueTrackingToolWindowIdString)]
+internal class ValueTrackingToolWindow : ToolWindowPane
 {
-    [Guid(Guids.ValueTrackingToolWindowIdString)]
-    internal class ValueTrackingToolWindow : ToolWindowPane
+    private readonly ValueTrackingRoot _root = new();
+
+    [MemberNotNullWhen(returnValue: true, nameof(_workspace), nameof(_threadingContext), nameof(ViewModel))]
+    public bool Initialized { get; private set; }
+
+    private Workspace? _workspace;
+
+    private IThreadingContext? _threadingContext;
+
+    private ValueTrackingTreeViewModel? _viewModel;
+    public ValueTrackingTreeViewModel? ViewModel
     {
-        private readonly Grid _rootGrid = new();
-
-        public static ValueTrackingToolWindow? Instance { get; set; }
-
-        private ValueTrackingTreeViewModel? _viewModel;
-        public ValueTrackingTreeViewModel? ViewModel
+        get => _viewModel;
+        private set
         {
-            get => _viewModel;
-            set
+            if (_viewModel is not null)
             {
-                if (value is null)
-                {
-                    throw new ArgumentNullException(nameof(ViewModel));
-                }
-
-                _viewModel = value;
-                _rootGrid.Children.Clear();
-                _rootGrid.Children.Add(new ValueTrackingTree(_viewModel));
+                throw new InvalidOperationException();
             }
-        }
 
-        /// <summary>
-        /// This paramterless constructor is used when
-        /// the tool window is initialized on open without any
-        /// context. If the tool window is left open across shutdown/restart
-        /// of VS for example, then this gets called. 
-        /// </summary>
-        public ValueTrackingToolWindow() : base(null)
-        {
-            Caption = ServicesVSResources.Value_Tracking;
-
-            _rootGrid.Children.Add(new TextBlock()
+            if (value is null)
             {
-                Text = ServicesVSResources.Select_an_appropriate_symbol_to_start_value_tracking
-            });
+                throw new ArgumentNullException(nameof(value));
+            }
 
-            Content = _rootGrid;
+            _viewModel = value;
+            _root.SetChild(new ValueTrackingTree(_viewModel));
         }
+    }
 
-        public ValueTrackingToolWindow(ValueTrackingTreeViewModel viewModel)
-            : base(null)
-        {
-            Caption = ServicesVSResources.Value_Tracking;
-            Content = _rootGrid;
-            ViewModel = viewModel;
-        }
+    /// <summary>
+    /// This paramterless constructor is used when
+    /// the tool window is initialized on open without any
+    /// context. If the tool window is left open across shutdown/restart
+    /// of VS for example, then this gets called. 
+    /// </summary>
+    public ValueTrackingToolWindow() : base(null)
+    {
+        Caption = ServicesVSResources.Value_Tracking;
+        Content = _root;
+    }
 
-        public TreeItemViewModel? Root
+    public void Initialize(ValueTrackingTreeViewModel viewModel, Workspace workspace, IThreadingContext threadingContext)
+    {
+        Contract.ThrowIfTrue(Initialized);
+
+        Initialized = true;
+        ViewModel = viewModel;
+        _workspace = workspace;
+        _threadingContext = threadingContext;
+
+        _workspace.WorkspaceChanged += OnWorkspaceChanged;
+    }
+
+    private void OnWorkspaceChanged(object sender, WorkspaceChangeEventArgs e)
+    {
+        Contract.ThrowIfFalse(Initialized);
+
+        if (e.Kind is WorkspaceChangeKind.SolutionCleared
+                   or WorkspaceChangeKind.SolutionRemoved)
         {
-            get => ViewModel?.Roots.Single();
-            set
+            _ = _threadingContext.JoinableTaskFactory.RunAsync(async () =>
             {
-                if (value is null)
-                {
-                    return;
-                }
-
-                Contract.ThrowIfNull(ViewModel);
-
+                await _threadingContext.JoinableTaskFactory.SwitchToMainThreadAsync();
                 ViewModel.Roots.Clear();
-                ViewModel.Roots.Add(value);
-            }
+            });
         }
     }
 }

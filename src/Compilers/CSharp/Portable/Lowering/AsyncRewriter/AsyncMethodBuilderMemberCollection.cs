@@ -26,7 +26,7 @@ namespace Microsoft.CodeAnalysis.CSharp
     /// each async method builder type. This avoids having to inspect the return style of the current async method
     /// to pick the right async method builder member during async rewriting.
     /// </summary>
-    internal struct AsyncMethodBuilderMemberCollection
+    internal readonly struct AsyncMethodBuilderMemberCollection
     {
         /// <summary>
         /// The builder's constructed type.
@@ -178,7 +178,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     collection: out collection);
             }
 
-            object methodLevelBuilder = null;
+            TypeSymbol methodLevelBuilder = null;
             if (method.IsAsyncEffectivelyReturningTask(F.Compilation))
             {
                 var returnType = (NamedTypeSymbol)method.ReturnType;
@@ -187,7 +187,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 PropertySymbol taskProperty = null;
                 bool useMethodLevelBuilder = method.HasAsyncMethodBuilderAttribute(out methodLevelBuilder);
                 bool customBuilder;
-                object builderArgument;
+                TypeSymbol builderArgument;
 
                 if (useMethodLevelBuilder)
                 {
@@ -268,7 +268,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 PropertySymbol taskProperty = null;
                 bool useMethodLevelBuilder = method.HasAsyncMethodBuilderAttribute(out methodLevelBuilder);
                 bool customBuilder;
-                object builderArgument;
+                TypeSymbol builderArgument;
 
                 if (useMethodLevelBuilder)
                 {
@@ -336,7 +336,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             throw ExceptionUtilities.UnexpectedValue(method);
         }
 
-        private static NamedTypeSymbol ValidateBuilderType(SyntheticBoundNodeFactory F, object builderAttributeArgument, Accessibility desiredAccessibility, bool isGeneric, bool forMethodLevelBuilder = false)
+        private static NamedTypeSymbol ValidateBuilderType(SyntheticBoundNodeFactory F, TypeSymbol builderAttributeArgument, Accessibility desiredAccessibility, bool isGeneric, bool forMethodLevelBuilder = false)
         {
             var builderType = builderAttributeArgument as NamedTypeSymbol;
 
@@ -345,10 +345,20 @@ namespace Microsoft.CodeAnalysis.CSharp
                  !builderType.IsVoidType() &&
                  (forMethodLevelBuilder || builderType.DeclaredAccessibility == desiredAccessibility))
             {
-                bool isArityOk = isGeneric
-                                 ? builderType.IsUnboundGenericType && builderType.ContainingType?.IsGenericType != true && builderType.Arity == 1
-                                 : !builderType.IsGenericType;
-                if (isArityOk)
+                if (isGeneric)
+                {
+                    if (builderType.IsUnboundGenericType && builderType.ContainingType?.IsGenericType != true && builderType.Arity == 1)
+                    {
+                        return builderType;
+                    }
+                    else
+                    {
+                        F.Diagnostics.Add(ErrorCode.ERR_WrongArityAsyncReturn, F.Syntax.Location, builderType);
+                        return null;
+                    }
+                }
+
+                if (!builderType.IsGenericType)
                 {
                     return builderType;
                 }

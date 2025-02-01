@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2-transitional.xsd">
   <file datatype="xml" source-language="en" target-language="tr" original="../Strings.resx">
     <body>
@@ -67,9 +67,14 @@
         <target state="translated">Sayı pozitif olmalı ve dize/dizi/koleksiyon içinde bir konuma başvurmalıdır.</target>
         <note />
       </trans-unit>
-      <trans-unit id="ArgumentOutOfRange_Index">
+      <trans-unit id="ArgumentOutOfRange_IndexMustBeLess">
         <source>Index was out of range. Must be non-negative and less than the size of the collection.</source>
         <target state="translated">Dizin aralık dışındaydı. Negatif bir değer olmamalı ve koleksiyonun boyutundan daha küçük olmalıdır.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="ArgumentOutOfRange_IndexMustBeLessOrEqual">
+        <source>Index was out of range. Must be non-negative and less than or equal to the size of the collection.</source>
+        <target state="translated">Dizin aralığın dışındaydı. Negatif olmamalı ve koleksiyonun boyutundan küçük veya buna eşit olmalıdır.</target>
         <note />
       </trans-unit>
       <trans-unit id="ArgumentOutOfRange_ListInsert">
@@ -92,7 +97,7 @@
         <target state="translated">Aynı anahtara sahip bir öğe zaten eklenmiş. Anahtar: {0}</target>
         <note />
       </trans-unit>
-      <trans-unit id="Argument_InvalidArrayType">
+      <trans-unit id="Argument_IncompatibleArrayType">
         <source>Target array type is not compatible with the type of items in the collection.</source>
         <target state="translated">Hedef dizi türü, koleksiyondaki öğelerin türüyle uyumlu değil.</target>
         <note />
@@ -100,6 +105,11 @@
       <trans-unit id="Argument_InvalidOffLen">
         <source>Offset and length were out of bounds for the array or count is greater than the number of elements from index to the end of the source collection.</source>
         <target state="translated">Uzaklık ve uzunluk dizi sınırlarının dışındaydı veya sayı, dizinden kaynak koleksiyonun sonuna kadar olan öğe sayısından daha büyük.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="CannotFindOldValue">
+        <source>Cannot find the old value</source>
+        <target state="translated">Eski değer bulunamıyor</target>
         <note />
       </trans-unit>
       <trans-unit id="InvalidOperation_ConcurrentOperationsNotSupported">

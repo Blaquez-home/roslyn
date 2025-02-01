@@ -10,56 +10,56 @@ namespace Microsoft.VisualStudio.LanguageServices.CSharp.Options
     {
         public int BringUpOnIdentifier
         {
-            get { return GetBooleanOption(CompletionOptions.TriggerOnTypingLetters2); }
-            set { SetBooleanOption(CompletionOptions.TriggerOnTypingLetters2, value); }
+            get { return GetBooleanOption(CompletionOptionsStorage.TriggerOnTypingLetters); }
+            set { SetBooleanOption(CompletionOptionsStorage.TriggerOnTypingLetters, value); }
         }
 
         public int HighlightMatchingPortionsOfCompletionListItems
         {
-            get { return GetBooleanOption(CompletionOptions.HighlightMatchingPortionsOfCompletionListItems); }
-            set { SetBooleanOption(CompletionOptions.HighlightMatchingPortionsOfCompletionListItems, value); }
+            get { return GetBooleanOption(CompletionViewOptionsStorage.HighlightMatchingPortionsOfCompletionListItems); }
+            set { SetBooleanOption(CompletionViewOptionsStorage.HighlightMatchingPortionsOfCompletionListItems, value); }
         }
 
         public int ShowCompletionItemFilters
         {
-            get { return GetBooleanOption(CompletionOptions.ShowCompletionItemFilters); }
-            set { SetBooleanOption(CompletionOptions.ShowCompletionItemFilters, value); }
+            get { return GetBooleanOption(CompletionViewOptionsStorage.ShowCompletionItemFilters); }
+            set { SetBooleanOption(CompletionViewOptionsStorage.ShowCompletionItemFilters, value); }
         }
 
         public int ShowItemsFromUnimportedNamespaces
         {
-            get { return GetBooleanOption(CompletionOptions.ShowItemsFromUnimportedNamespaces); }
-            set { SetBooleanOption(CompletionOptions.ShowItemsFromUnimportedNamespaces, value); }
+            get { return GetBooleanOption(CompletionOptionsStorage.ShowItemsFromUnimportedNamespaces); }
+            set { SetBooleanOption(CompletionOptionsStorage.ShowItemsFromUnimportedNamespaces, value); }
         }
 
         public int InsertNewlineOnEnterWithWholeWord
         {
-            get { return (int)GetOption(CompletionOptions.EnterKeyBehavior); }
-            set { SetOption(CompletionOptions.EnterKeyBehavior, (EnterKeyRule)value); }
+            get { return (int)GetOption(CompletionOptionsStorage.EnterKeyBehavior); }
+            set { SetOption(CompletionOptionsStorage.EnterKeyBehavior, (EnterKeyRule)value); }
         }
 
         public int EnterKeyBehavior
         {
-            get { return (int)GetOption(CompletionOptions.EnterKeyBehavior); }
-            set { SetOption(CompletionOptions.EnterKeyBehavior, (EnterKeyRule)value); }
+            get { return (int)GetOption(CompletionOptionsStorage.EnterKeyBehavior); }
+            set { SetOption(CompletionOptionsStorage.EnterKeyBehavior, (EnterKeyRule)value); }
         }
 
         public int SnippetsBehavior
         {
-            get { return (int)GetOption(CompletionOptions.SnippetsBehavior); }
-            set { SetOption(CompletionOptions.SnippetsBehavior, (SnippetsRule)value); }
+            get { return (int)GetOption(CompletionOptionsStorage.SnippetsBehavior); }
+            set { SetOption(CompletionOptionsStorage.SnippetsBehavior, (SnippetsRule)value); }
         }
 
         public int TriggerInArgumentLists
         {
-            get { return GetBooleanOption(CompletionOptions.TriggerInArgumentLists); }
-            set { SetBooleanOption(CompletionOptions.TriggerInArgumentLists, value); }
+            get { return GetBooleanOption(CompletionOptionsStorage.TriggerInArgumentLists); }
+            set { SetBooleanOption(CompletionOptionsStorage.TriggerInArgumentLists, value); }
         }
 
         public int EnableArgumentCompletionSnippets
         {
-            get { return GetBooleanOption(CompletionOptions.EnableArgumentCompletionSnippets); }
-            set { SetBooleanOption(CompletionOptions.EnableArgumentCompletionSnippets, value); }
+            get { return GetBooleanOption(CompletionViewOptionsStorage.EnableArgumentCompletionSnippets); }
+            set { SetBooleanOption(CompletionViewOptionsStorage.EnableArgumentCompletionSnippets, value); }
         }
     }
 }

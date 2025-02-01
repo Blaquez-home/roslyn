@@ -37,13 +37,13 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
         {
             if (this.AttributeConstructor.IsDefaultValueTypeConstructor())
             {
-                // Parameter constructors for structs exist in symbol table, but are not emitted.
-                // Produce an error since we cannot use it (instead of crashing):
+                // Default parameterless constructors for structs exist in symbol table, but are not emitted.
+                // Produce an error since we cannot use it (instead of crashing).
                 // Details: https://github.com/dotnet/roslyn/issues/19394
 
                 if (reportDiagnostics)
                 {
-                    context.Diagnostics.Add(ErrorCode.ERR_NotAnAttributeClass, context.SyntaxNode?.Location ?? NoLocation.Singleton, this.AttributeClass);
+                    context.Diagnostics.Add(ErrorCode.ERR_NotAnAttributeClass, context.Location ?? NoLocation.Singleton, this.AttributeClass);
                 }
 
                 return null;

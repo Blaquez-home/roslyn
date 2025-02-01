@@ -4,8 +4,7 @@
 
 using System.Linq;
 using Microsoft.CodeAnalysis.Editor.Xaml;
-using Microsoft.VisualStudio.LanguageServer.Protocol;
-using Microsoft.VisualStudio.LanguageServices.Xaml.LanguageServer.Handler;
+using Roslyn.LanguageServer.Protocol;
 using RoslynCompletion = Microsoft.CodeAnalysis.Completion;
 
 namespace Microsoft.VisualStudio.LanguageServices.Xaml
@@ -15,28 +14,29 @@ namespace Microsoft.VisualStudio.LanguageServices.Xaml
         /// <summary>
         /// The currently supported set of XAML LSP Server capabilities
         /// </summary>
-        public static VSServerCapabilities Current => new()
+        public static VSInternalServerCapabilities Current => new()
         {
             CompletionProvider = new CompletionOptions
             {
                 ResolveProvider = true,
-                TriggerCharacters = new string[] { "<", " ", ":", ".", "=", "\"", "'", "{", ",", "(" },
-                AllCommitCharacters = RoslynCompletion.CompletionRules.Default.DefaultCommitCharacters.Select(c => c.ToString()).ToArray()
+                TriggerCharacters = ["<", " ", ":", ".", "=", "\"", "'", "{", ",", "("],
+                AllCommitCharacters = [.. RoslynCompletion.CompletionRules.Default.DefaultCommitCharacters.Select(c => c.ToString())]
             },
             HoverProvider = true,
             FoldingRangeProvider = new FoldingRangeOptions { },
             DocumentFormattingProvider = true,
             DocumentRangeFormattingProvider = true,
-            DocumentOnTypeFormattingProvider = new DocumentOnTypeFormattingOptions { FirstTriggerCharacter = ">", MoreTriggerCharacter = new string[] { "\n" } },
-            OnAutoInsertProvider = new DocumentOnAutoInsertOptions { TriggerCharacters = new[] { "=", "/", ">" } },
+            DocumentOnTypeFormattingProvider = new DocumentOnTypeFormattingOptions { FirstTriggerCharacter = ">" },
+            OnAutoInsertProvider = new VSInternalDocumentOnAutoInsertOptions { TriggerCharacters = ["=", "/"] },
             TextDocumentSync = new TextDocumentSyncOptions
             {
                 Change = TextDocumentSyncKind.None,
                 OpenClose = false
             },
             SupportsDiagnosticRequests = true,
-            OnTypeRenameProvider = new DocumentOnTypeRenameOptions { WordPattern = OnTypeRenameHandler.NamePattern },
-            ExecuteCommandProvider = new ExecuteCommandOptions { Commands = new[] { StringConstants.CreateEventHandlerCommand } },
+            LinkedEditingRangeProvider = new LinkedEditingRangeOptions { },
+            ExecuteCommandProvider = new ExecuteCommandOptions { Commands = [StringConstants.CreateEventHandlerCommand] },
+            DefinitionProvider = true,
         };
 
         /// <summary>

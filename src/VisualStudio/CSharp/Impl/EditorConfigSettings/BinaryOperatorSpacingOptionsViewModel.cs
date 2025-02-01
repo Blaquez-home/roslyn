@@ -12,9 +12,9 @@ namespace Microsoft.VisualStudio.LanguageServices.CSharp.EditorConfigSettings
 {
     internal class BinaryOperatorSpacingOptionsViewModel : EnumSettingViewModel<BinaryOperatorSpacingOptions>
     {
-        private readonly FormattingSetting _setting;
+        private readonly Setting _setting;
 
-        public BinaryOperatorSpacingOptionsViewModel(FormattingSetting setting)
+        public BinaryOperatorSpacingOptionsViewModel(Setting setting)
         {
             _setting = setting;
         }

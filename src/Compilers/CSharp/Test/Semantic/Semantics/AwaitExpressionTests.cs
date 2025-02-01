@@ -16,7 +16,7 @@ using System.Linq;
 namespace Microsoft.CodeAnalysis.CSharp.UnitTests
 {
     /// <summary>
-    /// Tests related to binding (but not lowering) await expressions.
+    /// Tests related to await expressions.
     /// </summary>
     public class AwaitExpressionTests : CompilingTestBase
     {
@@ -77,7 +77,7 @@ static class MyAwaitableExtension
     }
 }";
 
-            var csCompilation = CreateCompilation(text, targetFramework: TargetFramework.NetCoreAppAndCSharp);
+            var csCompilation = CreateCompilation(text, targetFramework: TargetFramework.NetCoreApp);
             var tree = csCompilation.SyntaxTrees.Single();
 
             var model = csCompilation.GetSemanticModel(tree);
@@ -152,7 +152,7 @@ public class C {
         private AwaitExpressionInfo GetAwaitExpressionInfo(string text, out CSharpCompilation compilation, params DiagnosticDescription[] diagnostics)
         {
             var tree = Parse(text, options: CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp5));
-            var comp = CreateCompilationWithMscorlib45(new SyntaxTree[] { tree }, new MetadataReference[] { SystemRef });
+            var comp = CreateCompilationWithMscorlib461(new SyntaxTree[] { tree }, new MetadataReference[] { SystemRef });
             comp.VerifyDiagnostics(diagnostics);
             compilation = comp;
             var syntaxNode = (AwaitExpressionSyntax)tree.FindNodeOrTokenByKind(SyntaxKind.AwaitExpression).AsNode();
@@ -211,7 +211,7 @@ class Driver
     }
 }
 ";
-            var comp = CreateCompilationWithMscorlib45(text, options: TestOptions.ReleaseDll);
+            var comp = CreateCompilationWithMscorlib461(text, options: TestOptions.ReleaseDll);
             comp.VerifyEmitDiagnostics(
                 // (16,62): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread.
                 //         dynamic f = (await GetVal((Func<Task<int>>)(async () => 1)))();
@@ -239,11 +239,11 @@ class C
         Console.WriteLine(new TypedReference().Equals(await Task.FromResult(0)));
     }
 }";
-            var comp = CreateCompilationWithMscorlib45(text, options: TestOptions.ReleaseDll);
+            var comp = CreateCompilationWithMscorlib461(text, options: TestOptions.ReleaseDll);
             comp.VerifyEmitDiagnostics(
-                // (8,27): error CS4007: 'await' cannot be used in an expression containing the type 'System.TypedReference'
+                // (8,27): error CS4007: Instance of type 'System.TypedReference' cannot be preserved across 'await' or 'yield' boundary.
                 //         Console.WriteLine(new TypedReference().Equals(await Task.FromResult(0)));
-                Diagnostic(ErrorCode.ERR_ByRefTypeAndAwait, "await Task.FromResult(0)").WithArguments("System.TypedReference").WithLocation(8, 55));
+                Diagnostic(ErrorCode.ERR_ByRefTypeAndAwait, "new TypedReference()").WithArguments("System.TypedReference").WithLocation(8, 27));
         }
 
         [Fact]
@@ -297,6 +297,127 @@ class Program
             Assert.Null(info.GetAwaiterMethod);
             Assert.Null(info.IsCompletedProperty);
             Assert.Null(info.GetResultMethod);
+        }
+
+        [Fact]
+        [WorkItem(52639, "https://github.com/dotnet/roslyn/issues/52639")]
+        public void Issue52639_1()
+        {
+            var text =
+@"
+using System;
+using System.Threading.Tasks;
+
+class Test1
+{
+    public async Task<ActionResult> Test(MyBaseClass model)
+    {
+        switch (model)
+        {
+            case FirstImplementation firstImplementation:
+                firstImplementation.MyString1 = await Task.FromResult(""test"");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(model));
+        }
+
+        switch (model)
+        {
+            case FirstImplementation firstImplementation:
+                await Task.FromResult(1);
+                return PartialView(""View"", firstImplementation);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(model));
+        }
+    }
+
+    private ActionResult PartialView(string v, FirstImplementation firstImplementation)
+    {
+        return new ActionResult { F = firstImplementation };
+    }
+
+    static void Main()
+    {
+        var c = new Test1();
+        var f = new FirstImplementation();
+
+        if (c.Test(f).Result.F == f && f.MyString1 == ""test"")
+        {
+            System.Console.WriteLine(""Passed"");
+        }
+        else
+        {
+            System.Console.WriteLine(""Failed"");
+        }
+    }
+}
+
+internal class ActionResult
+{
+    public FirstImplementation F;
+}
+
+public abstract class MyBaseClass
+{
+    public string MyString { get; set; }
+}
+
+public class FirstImplementation : MyBaseClass
+{
+    public string MyString1 { get; set; }
+}
+
+public class SecondImplementation : MyBaseClass
+{
+    public string MyString2 { get; set; }
+}
+";
+            CompileAndVerify(text, options: TestOptions.ReleaseExe, expectedOutput: "Passed").VerifyDiagnostics();
+            CompileAndVerify(text, options: TestOptions.DebugExe, expectedOutput: "Passed").VerifyDiagnostics();
+        }
+
+        [Fact]
+        [WorkItem(52639, "https://github.com/dotnet/roslyn/issues/52639")]
+        public void Issue52639_2()
+        {
+            var text =
+@"
+using System.Threading.Tasks;
+
+class C
+{
+    string F;
+
+    async Task<C> Test(C c)
+    {
+        c.F = await Task.FromResult(""a"");
+
+        switch (c)
+        {
+            case C c1:
+                await Task.FromResult(1);
+                return c1;
+        }
+
+        return null;
+    }
+
+    static void Main()
+    {
+        var c = new C();
+        if (c.Test(c).Result == c && c.F == ""a"")
+        {
+            System.Console.WriteLine(""Passed"");
+        }
+        else
+        {
+            System.Console.WriteLine(""Failed"");
+        }
+    }
+}
+";
+            CompileAndVerify(text, options: TestOptions.ReleaseExe, expectedOutput: "Passed").VerifyDiagnostics();
+            CompileAndVerify(text, options: TestOptions.DebugExe, expectedOutput: "Passed").VerifyDiagnostics();
         }
     }
 }

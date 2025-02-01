@@ -26,14 +26,9 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.RemoveUnnecessaryByVal
         Public Overrides ReadOnly Property FixableDiagnosticIds As ImmutableArray(Of String) =
             ImmutableArray.Create(IDEDiagnosticIds.RemoveUnnecessaryByValDiagnosticId)
 
-        Friend Overrides ReadOnly Property CodeFixCategory As CodeFixCategory = CodeFixCategory.CodeStyle
-
         Public Overrides Function RegisterCodeFixesAsync(context As CodeFixContext) As Task
             For Each diagnostic In context.Diagnostics
-                context.RegisterCodeFix(New MyCodeAction(
-                    VisualBasicAnalyzersResources.Remove_ByVal,
-                    Function(ct) FixAsync(context.Document, diagnostic, ct)),
-                    diagnostic)
+                RegisterCodeFix(context, VisualBasicAnalyzersResources.Remove_ByVal, NameOf(VisualBasicAnalyzersResources.Remove_ByVal), diagnostic)
             Next
 
             Return Task.CompletedTask
@@ -47,13 +42,5 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.RemoveUnnecessaryByVal
                 editor.ReplaceNode(node, node.WithModifiers(tokenList))
             Next
         End Function
-
-        Private Class MyCodeAction
-            Inherits CustomCodeActions.DocumentChangeAction
-
-            Friend Sub New(title As String, createChangedDocument As Func(Of CancellationToken, Task(Of Document)))
-                MyBase.New(title, createChangedDocument)
-            End Sub
-        End Class
     End Class
 End Namespace

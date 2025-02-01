@@ -5,7 +5,6 @@
 Imports System.Collections.Immutable
 Imports Microsoft.CodeAnalysis.Test.Utilities
 Imports Roslyn.Test.Utilities
-Imports Roslyn.Test.Utilities.TestMetadata
 
 Namespace Microsoft.CodeAnalysis.VisualBasic.UnitTests
     Public Class AttributeTests_UnmanagedCallersOnly
@@ -13,7 +12,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.UnitTests
 
         Private ReadOnly _parseOptions As CSharp.CSharpParseOptions = CSharp.CSharpParseOptions.Default.WithLanguageVersion(CSharp.LanguageVersion.Default)
         Private ReadOnly _csharpCompOptions As CSharp.CSharpCompilationOptions = New CSharp.CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe:=True)
-        Private ReadOnly _csharpReferences As ImmutableArray(Of MetadataReference) = TargetFrameworkUtil.NetCoreAppReferences.Add(NetCoreApp.SystemRuntimeInteropServices)
+        Private ReadOnly _csharpReferences As ImmutableArray(Of MetadataReference) = TargetFrameworkUtil.GetReferences(TargetFramework.Net50)
 
         Private ReadOnly UnmanagedCallersOnlyAttributeIl As String = <![CDATA[
 .class public auto ansi sealed beforefieldinit System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute
@@ -72,19 +71,19 @@ End Class
     </file>
 </compilation>
 
-            Dim comp = CreateCompilation(source, references:={NetCoreApp.SystemRuntimeInteropServices}, targetFramework:=TargetFramework.NetCoreApp)
+            Dim comp = CreateCompilation(source, targetFramework:=TargetFramework.Net50)
 
             comp.AssertTheseDiagnostics(<![CDATA[
-BC42365: 'UnmanagedCallersOnly' attribute is not supported.
+BC37316: 'UnmanagedCallersOnly' attribute is not supported.
     <UnmanagedCallersOnly>
      ~~~~~~~~~~~~~~~~~~~~
-BC42365: 'UnmanagedCallersOnly' attribute is not supported.
+BC37316: 'UnmanagedCallersOnly' attribute is not supported.
     <UnmanagedCallersOnly(CallConvs := { GetType(CallConvCdecl) })>
      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-BC42365: 'UnmanagedCallersOnly' attribute is not supported.
+BC37316: 'UnmanagedCallersOnly' attribute is not supported.
         <UnmanagedCallersOnly>
          ~~~~~~~~~~~~~~~~~~~~
-BC42365: 'UnmanagedCallersOnly' attribute is not supported.
+BC37316: 'UnmanagedCallersOnly' attribute is not supported.
         <UnmanagedCallersOnly>
          ~~~~~~~~~~~~~~~~~~~~
 ]]>)
@@ -119,7 +118,7 @@ End Class
     </file>
 </compilation>
 
-            Dim comp = CreateCompilation(source, references:={NetCoreApp.SystemRuntimeInteropServices, reference}, targetFramework:=TargetFramework.NetCoreApp)
+            Dim comp = CreateCompilation(source, references:={reference}, targetFramework:=TargetFramework.Net50)
 
             comp.AssertTheseDiagnostics(<![CDATA[
 BC30657: 'M1' has a return type that is not supported or parameter types that are not supported.
@@ -175,7 +174,6 @@ BC30657: 'M1' has a return type that is not supported or parameter types that ar
     }
 }
 ]]>.Value
-
 
             Dim source =
 <compilation>

@@ -21,14 +21,14 @@ namespace Microsoft.CodeAnalysis.CompilerServer
 {
     internal readonly struct RunRequest
     {
-        public Guid RequestId { get; }
+        public string RequestId { get; }
         public string Language { get; }
         public string? WorkingDirectory { get; }
         public string? TempDirectory { get; }
         public string? LibDirectory { get; }
         public string[] Arguments { get; }
 
-        public RunRequest(Guid requestId, string language, string? workingDirectory, string? tempDirectory, string? libDirectory, string[] arguments)
+        public RunRequest(string requestId, string language, string? workingDirectory, string? tempDirectory, string? libDirectory, string[] arguments)
         {
             RequestId = requestId;
             Language = language;
@@ -41,7 +41,7 @@ namespace Microsoft.CodeAnalysis.CompilerServer
 
     internal sealed class CompilerServerHost : ICompilerServerHost
     {
-        public IAnalyzerAssemblyLoader AnalyzerAssemblyLoader { get; } = new ShadowCopyAnalyzerAssemblyLoader(Path.Combine(Path.GetTempPath(), "VBCSCompiler", "AnalyzerAssemblyLoader"));
+        public IAnalyzerAssemblyLoaderInternal AnalyzerAssemblyLoader { get; }
 
         public static Func<string, MetadataReferenceProperties, PortableExecutableReference> SharedAssemblyReferenceProvider { get; } = (path, properties) => new CachingMetadataReference(path, properties);
 
@@ -58,20 +58,21 @@ namespace Microsoft.CodeAnalysis.CompilerServer
         /// <summary>
         /// Directory that contains mscorlib.  Can be null when the host is executing in a CoreCLR context.
         /// </summary>
-        private string SdkDirectory { get; }
+        private string? SdkDirectory { get; }
 
         public ICompilerServerLogger Logger { get; }
 
-        internal CompilerServerHost(string clientDirectory, string sdkDirectory, ICompilerServerLogger logger)
+        /// <summary>
+        /// A cache that can store generator drivers in order to enable incrementalism across builds for the lifetime of the server.
+        /// </summary>
+        private readonly GeneratorDriverCache _driverCache = new GeneratorDriverCache();
+
+        internal CompilerServerHost(string clientDirectory, string? sdkDirectory, ICompilerServerLogger logger)
         {
             ClientDirectory = clientDirectory;
             SdkDirectory = sdkDirectory;
             Logger = logger;
-        }
-
-        private bool CheckAnalyzers(string baseDirectory, ImmutableArray<CommandLineAnalyzerReference> analyzers, [NotNullWhen(false)] out List<string>? errorMessages)
-        {
-            return AnalyzerConsistencyChecker.Check(baseDirectory, analyzers, AnalyzerAssemblyLoader, Logger, out errorMessages);
+            AnalyzerAssemblyLoader = DefaultAnalyzerAssemblyLoader.CreateNonLockingLoader(Path.Combine(Path.GetTempPath(), "VBCSCompiler", "AnalyzerAssemblyLoader"));
         }
 
         public bool TryCreateCompiler(in RunRequest request, BuildPaths buildPaths, [NotNullWhen(true)] out CommonCompiler? compiler)
@@ -84,7 +85,8 @@ namespace Microsoft.CodeAnalysis.CompilerServer
                         args: request.Arguments,
                         buildPaths: buildPaths,
                         libDirectory: request.LibDirectory,
-                        analyzerLoader: AnalyzerAssemblyLoader);
+                        analyzerLoader: AnalyzerAssemblyLoader,
+                        _driverCache);
                     return true;
                 case LanguageNames.VisualBasic:
                     compiler = new VisualBasicCompilerServer(
@@ -92,7 +94,8 @@ namespace Microsoft.CodeAnalysis.CompilerServer
                         args: request.Arguments,
                         buildPaths: buildPaths,
                         libDirectory: request.LibDirectory,
-                        analyzerLoader: AnalyzerAssemblyLoader);
+                        analyzerLoader: AnalyzerAssemblyLoader,
+                        _driverCache);
                     return true;
                 default:
                     compiler = null;
@@ -134,16 +137,17 @@ Run Compilation for {request.RequestId}
                 return new RejectedBuildResponse(message);
             }
 
-            bool utf8output = compiler.Arguments.Utf8Output;
-            if (!CheckAnalyzers(request.WorkingDirectory, compiler.Arguments.AnalyzerReferences, out List<string>? errorMessages))
+            if (!AnalyzerConsistencyChecker.Check(request.WorkingDirectory, compiler.Arguments.AnalyzerReferences, AnalyzerAssemblyLoader, Logger, out List<string>? errorMessages))
             {
-                Logger.Log($"Rejected: {request.RequestId}: for analyer load issues {string.Join(";", errorMessages)}");
+                Logger.Log($"Rejected: {request.RequestId}: for analyzer load issues {string.Join(";", errorMessages)}");
                 return new AnalyzerInconsistencyBuildResponse(new ReadOnlyCollection<string>(errorMessages));
             }
 
             Logger.Log($"Begin {request.RequestId} {request.Language} compiler run");
             try
             {
+                CodeAnalysisEventSource.Log.StartServerCompilation(request.RequestId);
+                bool utf8output = compiler.Arguments.Utf8Output;
                 TextWriter output = new StringWriter(CultureInfo.InvariantCulture);
                 int returnCode = compiler.Run(output, cancellationToken);
                 var outputString = output.ToString();
@@ -157,6 +161,10 @@ Output:
             {
                 Logger.LogException(ex, $"Running compilation for {request.RequestId}");
                 throw;
+            }
+            finally
+            {
+                CodeAnalysisEventSource.Log.StopServerCompilation(request.RequestId);
             }
         }
     }
